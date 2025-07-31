@@ -223,4 +223,3 @@ async fn upload_file_handler(
     // If no file field was found
     Err(StatusCode::BAD_REQUEST)
 }
-}
