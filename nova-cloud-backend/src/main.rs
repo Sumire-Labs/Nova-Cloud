@@ -1,4 +1,4 @@
-'''use axum::{
+use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{header, Method, StatusCode},
     routing::{get, post},
@@ -43,16 +43,19 @@ struct AppState {
 // --- Database Persistence ---
 
 async fn save_db_to_file(db: &Db) {
-    let db_lock = db.lock().unwrap();
-    match serde_json::to_string_pretty(&*db_lock) {
-        Ok(json_data) => {
-            if let Err(e) = tokio::fs::write(DB_PATH, json_data).await {
-                eprintln!("FATAL: Could not write to database file '{}': {}", DB_PATH, e);
+    let json_data = {
+        let db_lock = db.lock().unwrap();
+        match serde_json::to_string_pretty(&*db_lock) {
+            Ok(data) => data,
+            Err(e) => {
+                eprintln!("FATAL: Could not serialize database: {}", e);
+                return;
             }
         }
-        Err(e) => {
-            eprintln!("FATAL: Could not serialize database: {}", e);
-        }
+    };
+
+    if let Err(e) = tokio::fs::write(DB_PATH, json_data).await {
+        eprintln!("FATAL: Could not write to database file '{}': {}", DB_PATH, e);
     }
 }
 
@@ -225,4 +228,3 @@ async fn upload_file_handler(
         Err(StatusCode::BAD_REQUEST)
     }
 }
-''
