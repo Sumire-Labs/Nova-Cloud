@@ -1,5 +1,5 @@
-use axum::{
-    extract::{State, Path},
+'''use axum::{
+    extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{header, Method, StatusCode},
     routing::{get, post},
     Json, Router,
@@ -15,6 +15,9 @@ mod google_drive;
 use google_drive::{create_drive_hub, DriveHubType};
 use google_drive3::api::File;
 
+const DB_PATH: &str = "database.json";
+const UPLOAD_LIMIT_BYTES: usize = 100 * 1024 * 1024; // 100 MB
+
 // --- Data Structures ---
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -23,20 +26,53 @@ struct User {
     password: String,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct UserRecord {
     password: String,
     folder_id: String,
 }
 
-// In-memory user database
 type Db = Arc<Mutex<HashMap<String, UserRecord>>>;
 
-// Application state
 #[derive(Clone)]
 struct AppState {
     db: Db,
     drive_hub: Arc<DriveHubType>,
+}
+
+// --- Database Persistence ---
+
+async fn save_db_to_file(db: &Db) {
+    let db_lock = db.lock().unwrap();
+    match serde_json::to_string_pretty(&*db_lock) {
+        Ok(json_data) => {
+            if let Err(e) = tokio::fs::write(DB_PATH, json_data).await {
+                eprintln!("FATAL: Could not write to database file '{}': {}", DB_PATH, e);
+            }
+        }
+        Err(e) => {
+            eprintln!("FATAL: Could not serialize database: {}", e);
+        }
+    }
+}
+
+async fn load_db_from_file() -> Db {
+    match tokio::fs::read_to_string(DB_PATH).await {
+        Ok(json_data) => match serde_json::from_str(&json_data) {
+            Ok(map) => Arc::new(Mutex::new(map)),
+            Err(e) => {
+                eprintln!(
+                    "WARN: Could not parse database file '{}', starting fresh. Error: {}",
+                    DB_PATH, e
+                );
+                Arc::new(Mutex::new(HashMap::new()))
+            }
+        },
+        Err(_) => {
+            println!("INFO: No database file found, starting fresh.");
+            Arc::new(Mutex::new(HashMap::new()))
+        }
+    }
 }
 
 // --- Main Application ---
@@ -44,7 +80,7 @@ struct AppState {
 #[tokio::main]
 async fn main() {
     let drive_hub = Arc::new(create_drive_hub().await);
-    let db: Db = Arc::new(Mutex::new(HashMap::new()));
+    let db = load_db_from_file().await;
     let app_state = AppState { db, drive_hub };
 
     let cors = CorsLayer::new()
@@ -56,8 +92,9 @@ async fn main() {
         .route("/", get(root_handler))
         .route("/register", post(register_handler))
         .route("/login", post(login_handler))
-        // Add the new route for listing files
         .route("/api/files/:username", get(list_files_handler))
+        .route("/api/upload/:username", post(upload_file_handler))
+        .layer(DefaultBodyLimit::max(UPLOAD_LIMIT_BYTES))
         .with_state(app_state)
         .layer(cors);
 
@@ -78,8 +115,7 @@ async fn register_handler(
     Json(payload): Json<User>,
 ) -> (StatusCode, Json<serde_json::Value>) {
     {
-        let db_lock = state.db.lock().unwrap();
-        if db_lock.contains_key(&payload.username) {
+        if state.db.lock().unwrap().contains_key(&payload.username) {
             return (StatusCode::CONFLICT, Json(serde_json::json!({ "message": "Username already exists" })));
         }
     }
@@ -88,31 +124,26 @@ async fn register_handler(
         name: Some(payload.username.clone()),
         mime_type: Some("application/vnd.google-apps.folder".to_string()),
         parents: Some(vec!["1pFpk1JfsjwITQtfBJhGcCeAihzH1odD0".to_string()]),
-        ..
-        Default::default()
+        ..Default::default()
     };
 
     let created_folder = match state.drive_hub.files().create(new_folder).upload(std::io::empty(), "*/*".parse().unwrap()).await {
-        Ok((_response, folder)) => folder,
+        Ok((_, folder)) => folder,
         Err(e) => {
             eprintln!("Failed to create folder: {}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "message": "Failed to create user folder." })))
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "message": "Failed to create user folder." })));
         }
     };
 
     let folder_id = created_folder.id.clone().unwrap_or_default();
     if folder_id.is_empty() {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "message": "Failed to get folder ID from Google Drive." })))
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "message": "Failed to get folder ID." })));
     }
 
-    println!("Created folder for '{}' with ID: {}", payload.username, folder_id);
-    let mut db_lock = state.db.lock().unwrap();
-    let user_record = UserRecord {
-        password: payload.password,
-        folder_id,
-    };
-    db_lock.insert(payload.username, user_record);
-    
+    let user_record = UserRecord { password: payload.password, folder_id };
+    state.db.lock().unwrap().insert(payload.username, user_record);
+    save_db_to_file(&state.db).await;
+
     (StatusCode::CREATED, Json(serde_json::json!({ "message": "User registered successfully" })))
 }
 
@@ -124,44 +155,74 @@ async fn login_handler(
     let db_lock = state.db.lock().unwrap();
     match db_lock.get(&payload.username) {
         Some(record) if record.password == payload.password => {
-            println!("User '{}' logged in successfully", payload.username);
             (StatusCode::OK, Json(serde_json::json!({ "message": "Login successful", "username": payload.username })))
         }
-        _ => {
-            (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "message": "Invalid username or password" })))
-        }
+        _ => (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "message": "Invalid username or password" }))),
     }
 }
 
-// --- New Handler for Listing Files ---
 #[axum::debug_handler]
 async fn list_files_handler(
     State(state): State<AppState>,
     Path(username): Path<String>,
 ) -> Result<Json<Vec<File>>, StatusCode> {
-    let folder_id = {
-        let db_lock = state.db.lock().unwrap();
-        match db_lock.get(&username) {
-            Some(record) => record.folder_id.clone(),
-            None => return Err(StatusCode::NOT_FOUND),
-        }
+    let folder_id = match state.db.lock().unwrap().get(&username) {
+        Some(record) => record.folder_id.clone(),
+        None => return Err(StatusCode::NOT_FOUND),
     };
 
     let query = format!("'{}' in parents and trashed = false", folder_id);
-    match state.drive_hub
-        .files()
-        .list()
-        .q(&query)
-        .param("fields", "files(id,name,mimeType,createdTime,modifiedTime,size,iconLink)")
-        .doit()
-        .await
-    {
-        Ok((_response, file_list)) => {
-            Ok(Json(file_list.files.unwrap_or_default()))
-        }
+    match state.drive_hub.files().list().q(&query).param("fields", "files(id,name,mimeType,createdTime,modifiedTime,size,iconLink)").doit().await {
+        Ok((_, file_list)) => Ok(Json(file_list.files.unwrap_or_default())),
         Err(e) => {
             eprintln!("Failed to list files for user '{}': {}", username, e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
+
+#[axum::debug_handler]
+async fn upload_file_handler(
+    State(state): State<AppState>,
+    Path(username): Path<String>,
+    mut multipart: Multipart,
+) -> Result<Json<File>, StatusCode> {
+    let folder_id = match state.db.lock().unwrap().get(&username) {
+        Some(record) => record.folder_id.clone(),
+        None => return Err(StatusCode::NOT_FOUND),
+    };
+
+    let mut file_data: Option<(String, Vec<u8>)> = None;
+
+    while let Some(field) = multipart.next_field().await.unwrap() {
+        if field.name() == Some("file") {
+            let name = field.file_name().unwrap_or("unknown_file").to_string();
+            let data = field.bytes().await.unwrap().to_vec();
+            file_data = Some((name, data));
+            break; // Process only the first file
+        }
+    }
+
+    if let Some((name, data)) = file_data {
+        let new_file = File {
+            name: Some(name),
+            parents: Some(vec![folder_id]),
+            ..Default::default()
+        };
+
+        let cursor = std::io::Cursor::new(data);
+        match state.drive_hub.files().create(new_file).upload(cursor, "*/*".parse().unwrap()).await {
+            Ok((_, uploaded_file)) => {
+                println!("Successfully uploaded file '{}' for user '{}'", uploaded_file.name.clone().unwrap_or_default(), username);
+                Ok(Json(uploaded_file))
+            },
+            Err(e) => {
+                eprintln!("Failed to upload file for user '{}': {}", username, e);
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
+    } else {
+        Err(StatusCode::BAD_REQUEST)
+    }
+}
+''
