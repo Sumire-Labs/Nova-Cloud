@@ -12,18 +12,16 @@ const router = useRouter()
 
 const handleSubmit = async () => {
   try {
-    const response = await axios.post('http://localhost:3000/login', {
+    await axios.post('http://localhost:3000/register', {
       username: username.value,
       password: password.value,
     })
-    console.log('Backend response:', response.data)
-    alert('Login successful!')
-    // Redirect to a protected route, e.g., dashboard
-    // router.push('/dashboard')
+    alert('Registration successful! Please log in.')
+    router.push('/')
   } catch (error: any) {
-    console.error('Error during login:', error)
+    console.error('Error during registration:', error)
     const errorMessage = error.response?.data?.message || 'An error occurred.'
-    alert(`Login failed: ${errorMessage}`)
+    alert(`Registration failed: ${errorMessage}`)
   }
 }
 
@@ -46,8 +44,8 @@ onMounted(() => {
   <main class="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 font-sans">
     <div ref="formEl" class="w-full max-w-md p-10 space-y-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl">
       <div class="text-center">
-        <h1 class="text-4xl font-bold tracking-tighter text-gray-900 dark:text-white">Sign In</h1>
-        <p class="mt-2 text-gray-600 dark:text-gray-400">Enter your credentials to continue.</p>
+        <h1 class="text-4xl font-bold tracking-tighter text-gray-900 dark:text-white">Create Account</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400">Enter your details to register.</p>
       </div>
 
       <form class="space-y-6" @submit.prevent="handleSubmit">
@@ -79,14 +77,14 @@ onMounted(() => {
           type="submit"
           class="w-full px-4 py-3 font-semibold text-white bg-violet-600 rounded-lg hover:bg-violet-700 focus:outline-none focus:ring-4 focus:ring-violet-400 dark:focus:ring-violet-800 transition-all duration-200 active:scale-95"
         >
-          Sign In
+          Register
         </button>
       </form>
 
       <div class="text-center">
         <p class="text-sm text-gray-600 dark:text-gray-400">
-          Don't have an account?
-          <router-link to="/register" class="font-medium text-violet-500 hover:underline">Register</router-link>
+          Already have an account?
+          <router-link to="/" class="font-medium text-violet-500 hover:underline">Sign In</router-link>
         </p>
       </div>
     </div>
