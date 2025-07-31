@@ -22,6 +22,7 @@ const route = useRoute()
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+  background-color: #f0f2f5; /* Consistent background */
 }
 
 .page {
@@ -30,50 +31,32 @@ const route = useRoute()
   height: 100%;
 }
 
-/* --- Fade Transition (Default) --- */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+/* --- Shared Axis (Z-axis) Transition --- */
+.shared-axis-forward-enter-active,
+.shared-axis-forward-leave-active,
+.shared-axis-backward-enter-active,
+.shared-axis-backward-leave-active {
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.fade-enter-from,
-.fade-leave-to {
+
+/* Forward (e.g., Login -> Register) */
+.shared-axis-forward-enter-from {
+  transform: translateX(30px);
+  opacity: 0;
+}
+.shared-axis-forward-leave-to {
+  transform: translateX(-30px);
   opacity: 0;
 }
 
-/* --- Slide-Up Transition --- */
-.slide-up-enter-active,
-.slide-up-leave-active {
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease;
-}
-.slide-up-enter-from {
+/* Backward (e.g., Register -> Login) */
+.shared-axis-backward-enter-from {
+  transform: translateX(-30px);
   opacity: 0;
-  transform: translateY(30px);
 }
-.slide-up-leave-to {
+.shared-axis-backward-leave-to {
+  transform: translateX(30px);
   opacity: 0;
-  transform: translateY(-30px);
-}
-
-/* --- Slide-Next/Prev Transition (for wizard-like flows) --- */
-.slide-next-enter-active,
-.slide-next-leave-active,
-.slide-prev-enter-active,
-.slide-prev-leave-active {
-    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.slide-next-enter-from {
-    transform: translateX(100%);
-}
-.slide-next-leave-to {
-    transform: translateX(-100%);
-}
-
-.slide-prev-enter-from {
-    transform: translateX(-100%);
-}
-.slide-prev-leave-to {
-    transform: translateX(100%);
 }
 
 </style>
