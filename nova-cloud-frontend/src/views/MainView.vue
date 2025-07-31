@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { animate, spring, stagger } from 'motion'
 
@@ -19,6 +19,7 @@ const router = useRouter()
 const username = ref(sessionStorage.getItem('username') || 'User')
 const files = ref<DriveFile[]>([])
 const isLoading = ref(true)
+const isUploading = ref(false)
 const errorMessage = ref('')
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
@@ -42,6 +43,33 @@ const fetchFiles = async () => {
   }
 }
 
+const uploadFile = async (file: File) => {
+  if (!username.value) {
+    alert('Cannot upload: User not identified.');
+    return;
+  }
+  
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    isUploading.value = true;
+    await axios.post(`http://localhost:3000/api/upload/${username.value}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    // Refresh file list on successful upload
+    await fetchFiles();
+  } catch (error) {
+    console.error('Upload failed:', error);
+    alert('File upload failed. Please try again.');
+  } finally {
+    isUploading.value = false;
+  }
+};
+
+
 // --- UI Logic ---
 const handleLogout = () => {
   sessionStorage.removeItem('username')
@@ -56,9 +84,9 @@ const handleFileSelected = (event: Event) => {
   const target = event.target as HTMLInputElement
   if (target.files && target.files.length > 0) {
     const selectedFile = target.files[0]
-    console.log('Selected file:', selectedFile.name)
-    // TODO: Implement the actual upload logic
-    alert(`You selected: ${selectedFile.name}`)
+    uploadFile(selectedFile);
+    // Reset file input to allow selecting the same file again
+    target.value = '';
   }
 }
 
@@ -97,6 +125,14 @@ onMounted(() => {
 
 <template>
   <div class="relative w-full h-full">
+    <!-- Uploading Overlay -->
+    <div v-if="isUploading" class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div class="flex flex-col items-center">
+        <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-violet-400"></div>
+        <p class="text-white text-lg mt-4">Uploading...</p>
+      </div>
+    </div>
+
     <!-- Main Layout with Padding -->
     <div class="flex flex-col w-full h-full p-4 sm:p-6 lg:p-8 gap-4">
       <!-- Header -->
