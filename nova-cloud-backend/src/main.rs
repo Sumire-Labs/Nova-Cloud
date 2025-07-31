@@ -90,8 +90,8 @@ async fn register_handler(
     let new_folder = File {
         name: Some(payload.username.clone()),
         mime_type: Some("application/vnd.google-apps.folder".to_string()),
-        // To place this folder inside a specific parent folder, add its ID here:
-        // parents: Some(vec!["YOUR_PARENT_FOLDER_ID".to_string()]),
+        // Place this folder inside the specified parent folder.
+        parents: Some(vec!["1pFpk1JfsjwITQtfBJhGcCeAihzH1odD0".to_string()]),
         ..
         Default::default()
     };
