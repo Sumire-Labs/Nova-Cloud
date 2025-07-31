@@ -18,6 +18,10 @@ const handleSubmit = async () => {
       password: password.value,
     })
     console.log('Backend response:', response.data)
+
+    // Save username to session storage to identify the user in other views
+    sessionStorage.setItem('username', response.data.username);
+
     router.push('/main')
   } catch (error: any) {
     console.error('Error during login:', error)
