@@ -9,3 +9,9 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.141"
 tokio = { version = "1.47.0", features = ["full"] }
 tower-http = { version = "0.6.6", features = ["cors"] }
+
+# Google Drive API dependencies
+google-drive3 = "5.0.4"
+yup-oauth2 = "8.0.0"
+hyper = { version = "0.14", features = ["full"] }
+hyper-rustls = "0.24.0"

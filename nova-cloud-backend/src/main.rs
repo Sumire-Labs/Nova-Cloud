@@ -11,6 +11,9 @@ use std::{
 };
 use tower_http::cors::{Any, CorsLayer};
 
+mod google_drive;
+use google_drive::{create_drive_hub, create_folder, DriveHubType};
+
 // --- Data Structures ---
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -22,12 +25,28 @@ struct User {
 // In-memory user database
 type Db = Arc<Mutex<HashMap<String, String>>>;
 
+// Application state
+#[derive(Clone)]
+struct AppState {
+    db: Db,
+    drive_hub: Arc<DriveHubType>,
+}
+
 // --- Main Application ---
 
 #[tokio::main]
 async fn main() {
     // Create an in-memory database for users.
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
+
+    // Create the Google Drive hub.
+    let drive_hub = Arc::new(create_drive_hub().await);
+
+    // Create the application state.
+    let app_state = AppState {
+        db,
+        drive_hub,
+    };
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST])
@@ -38,7 +57,7 @@ async fn main() {
         .route("/", get(root_handler))
         .route("/register", post(register_handler))
         .route("/login", post(login_handler))
-        .with_state(db) // Pass the database to the handlers
+        .with_state(app_state) // Pass the application state to the handlers
         .layer(cors);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
@@ -53,28 +72,37 @@ async fn root_handler() -> &'static str {
 }
 
 async fn register_handler(
-    State(db): State<Db>,
+    State(state): State<AppState>,
     Json(payload): Json<User>,
 ) -> (StatusCode, Json<serde_json::Value>) {
-    let mut db_lock = db.lock().unwrap();
+    let mut db_lock = state.db.lock().unwrap();
 
     if db_lock.contains_key(&payload.username) {
         let response = serde_json::json!({ "message": "Username already exists" });
         return (StatusCode::CONFLICT, Json(response));
     }
 
-    println!("Registering new user: {}", payload.username);
-    db_lock.insert(payload.username, payload.password);
-
-    let response = serde_json::json!({ "message": "User registered successfully" });
-    (StatusCode::CREATED, Json(response))
+    // Create a folder for the new user in Google Drive.
+    match create_folder(&state.drive_hub, &payload.username, None).await {
+        Ok(folder) => {
+            println!("Successfully created folder for user '{}': {}", payload.username, folder.name.unwrap_or_default());
+            db_lock.insert(payload.username, payload.password);
+            let response = serde_json::json!({ "message": "User registered successfully" });
+            (StatusCode::CREATED, Json(response))
+        }
+        Err(e) => {
+            eprintln!("Failed to create folder for user '{}': {}", payload.username, e);
+            let response = serde_json::json!({ "message": "Failed to create user folder in Google Drive" });
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(response))
+        }
+    }
 }
 
 async fn login_handler(
-    State(db): State<Db>,
+    State(state): State<AppState>,
     Json(payload): Json<User>,
 ) -> (StatusCode, Json<serde_json::Value>) {
-    let db_lock = db.lock().unwrap();
+    let db_lock = state.db.lock().unwrap();
 
     match db_lock.get(&payload.username) {
         Some(password) if *password == payload.password => {
