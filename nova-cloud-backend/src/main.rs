@@ -198,16 +198,25 @@ async fn upload_file_handler(
     while let Some(field) = multipart.next_field().await.map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)? {
         if field.name() == Some("file") {
             let file_name = field.file_name().unwrap_or("unknown_file").to_string();
+            let mime_type = field.content_type().unwrap_or("application/octet-stream").to_string();
             let data = field.bytes().await.map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-            let new_file = File {
+            let new_file_metadata = File {
                 name: Some(file_name.clone()),
                 parents: Some(vec![folder_id]),
                 ..Default::default()
             };
 
             let cursor = std::io::Cursor::new(data);
-            match state.drive_hub.files().create(new_file).upload(cursor, "*/*".parse().unwrap()).await {
+
+            // This is the correct and final method.
+            // The `create` method sends the metadata (including the parent folder).
+            // The `upload_resumable` method sends the actual file data.
+            match state.drive_hub
+                .files()
+                .create(new_file_metadata)
+                .upload_resumable(cursor, mime_type.parse().unwrap())
+                .await {
                 Ok((_, uploaded_file)) => {
                     println!("Successfully uploaded file '{}' for user '{}'", uploaded_file.name.clone().unwrap_or_default(), username);
                     return Ok(Json(uploaded_file));
@@ -220,6 +229,5 @@ async fn upload_file_handler(
         }
     }
 
-    // If no file field was found
     Err(StatusCode::BAD_REQUEST)
 }
