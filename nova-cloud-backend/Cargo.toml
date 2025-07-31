@@ -1,17 +1,17 @@
 [package]
 name = "nova-cloud-backend"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
-axum = "0.8.4"
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.141"
-tokio = { version = "1.47.0", features = ["full"] }
-tower-http = { version = "0.6.6", features = ["cors"] }
+axum = { version = "0.7.5", features = ["macros"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5.2", features = ["cors"] }
 
 # Google Drive API dependencies
-google-drive3 = "5.0.4"
-yup-oauth2 = "8.0.0"
+google-drive3 = "5.0.5"
+yup-oauth2 = { version = "9.0.0", features = ["service_account"] }
 hyper = { version = "0.14", features = ["full"] }
-hyper-rustls = "0.24.0"
+hyper-rustls = "0.24"

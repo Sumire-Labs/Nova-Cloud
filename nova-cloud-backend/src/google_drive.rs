@@ -1,28 +1,24 @@
-use yup_oauth2::{InstalledFlowAuthenticator, InstalledFlowReturnMethod};
-use google_drive3::{DriveHub, api::File};
+use yup_oauth2::ServiceAccountAuthenticator;
+use google_drive3::DriveHub;
 use hyper::client::HttpConnector;
 use hyper_rustls::HttpsConnector;
-use std::sync::Arc;
 
 // A type alias for the DriveHub to make it easier to use.
 pub type DriveHubType = DriveHub<HttpsConnector<HttpConnector>>;
 
-/// Creates a new DriveHub instance for interacting with the Google Drive API.
+/// Creates a new DriveHub instance for interacting with the Google Drive API
+/// using a service account.
 pub async fn create_drive_hub() -> DriveHubType {
-    // Read the client secret from the file.
-    let secret = yup_oauth2::read_application_secret("config/google_client_secret.json")
+    // Read the service account key from the file.
+    let sa_key = yup_oauth2::read_service_account_key("config/google_client_secret.json")
         .await
-        .expect("Failed to read client secret file");
+        .expect("Failed to read service account key file");
 
     // Create an authenticator.
-    let auth = InstalledFlowAuthenticator::builder(
-        secret,
-        InstalledFlowReturnMethod::Interactive,
-    )
-    .persist_tokens_to_disk("config/tokencache.json")
-    .build()
-    .await
-    .expect("Failed to create authenticator");
+    let auth = ServiceAccountAuthenticator::builder(sa_key)
+        .build()
+        .await
+        .expect("Failed to create service account authenticator");
 
     // Create the DriveHub.
     DriveHub::new(
@@ -35,21 +31,3 @@ pub async fn create_drive_hub() -> DriveHubType {
     )
 }
 
-/// Creates a new folder in Google Drive.
-pub async fn create_folder(hub: &DriveHubType, folder_name: &str, parent_id: Option<&str>) -> Result<File, Box<dyn std::error::Error>> {
-    let new_folder = File {
-        name: Some(folder_name.to_string()),
-        mime_type: Some("application/vnd.google-apps.folder".to_string()),
-        parents: parent_id.map(|id| vec![id.to_string()]),
-        ..
-        Default::default()
-    };
-
-    let result = hub
-        .files()
-        .create(new_folder)
-        .upload(std::io::empty(), "*/*".parse().unwrap())
-        .await?;
-
-    Ok(result.1)
-}
