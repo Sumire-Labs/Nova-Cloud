@@ -1,51 +1,40 @@
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { animate, spring } from 'motion'
-import axios from 'axios'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
 
-const formEl = ref<HTMLElement | null>(null)
 const username = ref('')
 const password = ref('')
+const errorMessage = ref('')
 const router = useRouter()
 
 const handleSubmit = async () => {
+  errorMessage.value = ''
   try {
     await axios.post('http://localhost:3000/register', {
       username: username.value,
       password: password.value,
     })
-    alert('Registration successful! Please log in.')
-    router.push('/')
+    alert('Registration successful! Please proceed to login.')
+    router.push('/') // Redirect to login page
   } catch (error: any) {
     console.error('Error during registration:', error)
-    const errorMessage = error.response?.data?.message || 'An error occurred.'
-    alert(`Registration failed: ${errorMessage}`)
+    if (error.response) {
+      errorMessage.value = error.response.data.message || 'Could not create account.'
+    } else {
+      errorMessage.value = 'An unexpected error occurred. Please try again.'
+    }
   }
 }
-
-onMounted(() => {
-  if (formEl.value) {
-    animate(
-      formEl.value,
-      { y: [20, 0], opacity: [0, 1] },
-      {
-        delay: 0.2,
-        duration: 0.8,
-        easing: spring({ stiffness: 100, damping: 15 }),
-      }
-    )
-  }
-})
 </script>
 
 <template>
   <main class="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 font-sans">
-    <div ref="formEl" class="w-full max-w-md p-10 space-y-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl">
+    <div class="w-full max-w-md p-10 space-y-6 bg-white dark:bg-gray-800 rounded-2xl shadow-xl">
       <div class="text-center">
-        <h1 class="text-4xl font-bold tracking-tighter text-gray-900 dark:text-white">Create Account</h1>
-        <p class="mt-2 text-gray-600 dark:text-gray-400">Enter your details to register.</p>
+        <h1 class="text-4xl font-bold tracking-tighter text-gray-900 dark:text-white">Create Your Account</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400">Join Nova Cloud today.</p>
       </div>
 
       <form class="space-y-6" @submit.prevent="handleSubmit">
@@ -56,7 +45,7 @@ onMounted(() => {
             type="text"
             id="username"
             class="block w-full px-4 py-3 border rounded-lg bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-violet-500 focus:border-violet-500 transition-all duration-300"
-            placeholder="your-username"
+            placeholder="choose-a-username"
             required
           />
         </div>
@@ -73,11 +62,15 @@ onMounted(() => {
           />
         </div>
 
+        <div v-if="errorMessage" class="p-3 text-sm text-red-700 bg-red-100 rounded-lg dark:bg-red-200 dark:text-red-800" role="alert">
+          {{ errorMessage }}
+        </div>
+
         <button
           type="submit"
           class="w-full px-4 py-3 font-semibold text-white bg-violet-600 rounded-lg hover:bg-violet-700 focus:outline-none focus:ring-4 focus:ring-violet-400 dark:focus:ring-violet-800 transition-all duration-200 active:scale-95"
         >
-          Register
+          Create Account
         </button>
       </form>
 
