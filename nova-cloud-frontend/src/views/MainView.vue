@@ -28,7 +28,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="w-full h-full flex flex-col p-4 sm:p-6 lg:p-8 gap-4">
+  <div class="relative w-full h-full flex flex-col p-4 sm:p-6 lg:p-8 gap-4">
     <!-- Header -->
     <header class="flex-shrink-0 flex items-center justify-between p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-lg">
       <h1 class="text-xl font-bold text-white">Nova Cloud</h1>

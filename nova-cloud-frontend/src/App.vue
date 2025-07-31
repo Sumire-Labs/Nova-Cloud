@@ -8,15 +8,13 @@ const route = useRoute()
   <div class="relative w-full h-screen overflow-hidden bg-slate-900">
     <div class="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))] animate-aurora"></div>
     
-    <main class="flex items-center justify-center w-full h-full">
-      <router-view v-slot="{ Component }">
-        <transition :name="route.meta.transition || 'fade'" mode="out-in">
-          <div :key="route.path">
-            <component :is="Component" />
-          </div>
-        </transition>
-      </router-view>
-    </main>
+    <router-view v-slot="{ Component }">
+      <transition :name="route.meta.transition || 'fade'" mode="out-in">
+        <div :key="route.path" class="w-full h-full">
+          <component :is="Component" />
+        </div>
+      </transition>
+    </router-view>
   </div>
 </template>
 
