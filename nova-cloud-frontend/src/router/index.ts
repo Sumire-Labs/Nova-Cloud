@@ -9,11 +9,13 @@ const router = createRouter({
       path: '/',
       name: 'login',
       component: LoginView,
+      meta: { transition: 'slide-prev' },
     },
     {
       path: '/register',
       name: 'register',
       component: RegisterView,
+      meta: { transition: 'slide-next' },
     },
   ],
 })

@@ -1,16 +1,16 @@
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { animate, spring } from 'motion'
-import axios from 'axios'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
 
-const formEl = ref<HTMLElement | null>(null)
 const username = ref('')
 const password = ref('')
+const errorMessage = ref('')
 const router = useRouter()
 
 const handleSubmit = async () => {
+  errorMessage.value = ''
   try {
     const response = await axios.post('http://localhost:3000/login', {
       username: username.value,
@@ -18,36 +18,25 @@ const handleSubmit = async () => {
     })
     console.log('Backend response:', response.data)
     alert('Login successful!')
-    // Redirect to a protected route, e.g., dashboard
-    // router.push('/dashboard')
+    // On successful login, you might want to navigate to a dashboard
+    // router.push('/dashboard') 
   } catch (error: any) {
     console.error('Error during login:', error)
-    const errorMessage = error.response?.data?.message || 'An error occurred.'
-    alert(`Login failed: ${errorMessage}`)
+    if (error.response) {
+      errorMessage.value = error.response.data.message || 'Invalid username or password.'
+    } else {
+      errorMessage.value = 'An unexpected error occurred. Please try again.'
+    }
   }
 }
-
-onMounted(() => {
-  if (formEl.value) {
-    animate(
-      formEl.value,
-      { y: [20, 0], opacity: [0, 1] },
-      {
-        delay: 0.2,
-        duration: 0.8,
-        easing: spring({ stiffness: 100, damping: 15 }),
-      }
-    )
-  }
-})
 </script>
 
 <template>
   <main class="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 font-sans">
-    <div ref="formEl" class="w-full max-w-md p-10 space-y-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl">
+    <div class="w-full max-w-md p-10 space-y-6 bg-white dark:bg-gray-800 rounded-2xl shadow-xl">
       <div class="text-center">
-        <h1 class="text-4xl font-bold tracking-tighter text-gray-900 dark:text-white">Sign In</h1>
-        <p class="mt-2 text-gray-600 dark:text-gray-400">Enter your credentials to continue.</p>
+        <h1 class="text-4xl font-bold tracking-tighter text-gray-900 dark:text-white">Welcome Back!</h1>
+        <p class="mt-2 text-gray-600 dark:text-gray-400">Sign in to access your cloud.</p>
       </div>
 
       <form class="space-y-6" @submit.prevent="handleSubmit">
@@ -75,6 +64,10 @@ onMounted(() => {
           />
         </div>
 
+        <div v-if="errorMessage" class="p-3 text-sm text-red-700 bg-red-100 rounded-lg dark:bg-red-200 dark:text-red-800" role="alert">
+          {{ errorMessage }}
+        </div>
+
         <button
           type="submit"
           class="w-full px-4 py-3 font-semibold text-white bg-violet-600 rounded-lg hover:bg-violet-700 focus:outline-none focus:ring-4 focus:ring-violet-400 dark:focus:ring-violet-800 transition-all duration-200 active:scale-95"
@@ -86,7 +79,7 @@ onMounted(() => {
       <div class="text-center">
         <p class="text-sm text-gray-600 dark:text-gray-400">
           Don't have an account?
-          <router-link to="/register" class="font-medium text-violet-500 hover:underline">Register</router-link>
+          <router-link to="/register" class="font-medium text-violet-500 hover:underline">Register Now</router-link>
         </p>
       </div>
     </div>
