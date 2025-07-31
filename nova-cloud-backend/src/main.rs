@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{State, Path},
     http::{header, Method, StatusCode},
     routing::{get, post},
     Json, Router,
@@ -23,8 +23,14 @@ struct User {
     password: String,
 }
 
+#[derive(Serialize, Debug, Clone)]
+struct UserRecord {
+    password: String,
+    folder_id: String,
+}
+
 // In-memory user database
-type Db = Arc<Mutex<HashMap<String, String>>>;
+type Db = Arc<Mutex<HashMap<String, UserRecord>>>;
 
 // Application state
 #[derive(Clone)]
@@ -37,17 +43,9 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
-    // Create the Google Drive hub using the service account.
     let drive_hub = Arc::new(create_drive_hub().await);
-
-    // Create an in-memory database for users.
     let db: Db = Arc::new(Mutex::new(HashMap::new()));
-
-    // Create the application state.
-    let app_state = AppState {
-        db,
-        drive_hub,
-    };
+    let app_state = AppState { db, drive_hub };
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST])
@@ -58,6 +56,8 @@ async fn main() {
         .route("/", get(root_handler))
         .route("/register", post(register_handler))
         .route("/login", post(login_handler))
+        // Add the new route for listing files
+        .route("/api/files/:username", get(list_files_handler))
         .with_state(app_state)
         .layer(cors);
 
@@ -77,20 +77,16 @@ async fn register_handler(
     State(state): State<AppState>,
     Json(payload): Json<User>,
 ) -> (StatusCode, Json<serde_json::Value>) {
-    // Step 1: Check if user exists (without holding the lock)
     {
         let db_lock = state.db.lock().unwrap();
         if db_lock.contains_key(&payload.username) {
-            let response = serde_json::json!({ "message": "Username already exists" });
-            return (StatusCode::CONFLICT, Json(response));
+            return (StatusCode::CONFLICT, Json(serde_json::json!({ "message": "Username already exists" })));
         }
-    } // Lock is released here
+    }
 
-    // Step 2: Perform the async operation (Google Drive API call)
     let new_folder = File {
         name: Some(payload.username.clone()),
         mime_type: Some("application/vnd.google-apps.folder".to_string()),
-        // Place this folder inside the specified parent folder.
         parents: Some(vec!["1pFpk1JfsjwITQtfBJhGcCeAihzH1odD0".to_string()]),
         ..
         Default::default()
@@ -99,19 +95,25 @@ async fn register_handler(
     let created_folder = match state.drive_hub.files().create(new_folder).upload(std::io::empty(), "*/*".parse().unwrap()).await {
         Ok((_response, folder)) => folder,
         Err(e) => {
-            eprintln!("Failed to create folder for user '{}': {}", payload.username, e);
-            let response = serde_json::json!({ "message": "Failed to create user folder in Google Drive. Check server logs." });
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(response));
+            eprintln!("Failed to create folder: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "message": "Failed to create user folder." })))
         }
     };
 
-    // Step 3: Lock the database again and insert the new user
-    println!("Successfully created folder for user '{}': {}", payload.username, created_folder.name.unwrap_or_default());
+    let folder_id = created_folder.id.clone().unwrap_or_default();
+    if folder_id.is_empty() {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "message": "Failed to get folder ID from Google Drive." })))
+    }
+
+    println!("Created folder for '{}' with ID: {}", payload.username, folder_id);
     let mut db_lock = state.db.lock().unwrap();
-    db_lock.insert(payload.username, payload.password);
+    let user_record = UserRecord {
+        password: payload.password,
+        folder_id,
+    };
+    db_lock.insert(payload.username, user_record);
     
-    let response = serde_json::json!({ "message": "User registered successfully" });
-    (StatusCode::CREATED, Json(response))
+    (StatusCode::CREATED, Json(serde_json::json!({ "message": "User registered successfully" })))
 }
 
 #[axum::debug_handler]
@@ -120,17 +122,46 @@ async fn login_handler(
     Json(payload): Json<User>,
 ) -> (StatusCode, Json<serde_json::Value>) {
     let db_lock = state.db.lock().unwrap();
-
     match db_lock.get(&payload.username) {
-        Some(password) if *password == payload.password => {
+        Some(record) if record.password == payload.password => {
             println!("User '{}' logged in successfully", payload.username);
-            let response = serde_json::json!({ "message": "Login successful" });
-            (StatusCode::OK, Json(response))
+            (StatusCode::OK, Json(serde_json::json!({ "message": "Login successful", "username": payload.username })))
         }
         _ => {
-            println!("Failed login attempt for user '{}'", payload.username);
-            let response = serde_json::json!({ "message": "Invalid username or password" });
-            (StatusCode::UNAUTHORIZED, Json(response))
+            (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "message": "Invalid username or password" })))
+        }
+    }
+}
+
+// --- New Handler for Listing Files ---
+#[axum::debug_handler]
+async fn list_files_handler(
+    State(state): State<AppState>,
+    Path(username): Path<String>,
+) -> Result<Json<Vec<File>>, StatusCode> {
+    let folder_id = {
+        let db_lock = state.db.lock().unwrap();
+        match db_lock.get(&username) {
+            Some(record) => record.folder_id.clone(),
+            None => return Err(StatusCode::NOT_FOUND),
+        }
+    };
+
+    let query = format!("'{}' in parents and trashed = false", folder_id);
+    match state.drive_hub
+        .files()
+        .list()
+        .q(&query)
+        .param("fields", "files(id,name,mimeType,createdTime,modifiedTime,size,iconLink)")
+        .doit()
+        .await
+    {
+        Ok((_response, file_list)) => {
+            Ok(Json(file_list.files.unwrap_or_default()))
+        }
+        Err(e) => {
+            eprintln!("Failed to list files for user '{}': {}", username, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }
