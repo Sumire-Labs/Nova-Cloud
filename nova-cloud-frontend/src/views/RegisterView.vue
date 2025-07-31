@@ -3,6 +3,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { animate, spring } from 'motion'
 
 const username = ref('')
 const password = ref('')
@@ -27,75 +28,70 @@ const handleSubmit = async () => {
     }
   }
 }
+
+const onButtonClick = (event: MouseEvent) => {
+  const button = event.currentTarget as HTMLElement
+  animate(button, 
+    { scale: [1, 0.95, 1] }, 
+    { duration: 0.3, easing: spring({ stiffness: 300, damping: 15}) }
+  )
+}
 </script>
 
 <template>
-  <main class="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 font-sans">
-    <div class="w-full max-w-md p-10 space-y-6 bg-white dark:bg-gray-800 rounded-2xl shadow-xl">
-      <div class="text-center">
-        <h1 class="text-4xl font-bold tracking-tighter text-gray-900 dark:text-white">Create Your Account</h1>
-        <p class="mt-2 text-gray-600 dark:text-gray-400">Join Nova Cloud today.</p>
-      </div>
-
-      <form class="space-y-6" @submit.prevent="handleSubmit">
-        <div>
-          <label for="username" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
-          <input
-            v-model="username"
-            type="text"
-            id="username"
-            class="block w-full px-4 py-3 border rounded-lg bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-violet-500 focus:border-violet-500 transition-all duration-300"
-            placeholder="choose-a-username"
-            required
-          />
-        </div>
-
-        <div>
-          <label for="password" class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
-          <input
-            v-model="password"
-            type="password"
-            id="password"
-            class="block w-full px-4 py-3 border rounded-lg bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-violet-500 focus:border-violet-500 transition-all duration-300"
-            placeholder="••••••••"
-            required
-          />
-        </div>
-
-        <div v-if="errorMessage" class="p-3 text-sm text-red-700 bg-red-100 rounded-lg dark:bg-red-200 dark:text-red-800" role="alert">
-          {{ errorMessage }}
-        </div>
-
-        <button
-          type="submit"
-          class="w-full px-4 py-3 font-semibold text-white bg-violet-600 rounded-lg hover:bg-violet-700 focus:outline-none focus:ring-4 focus:ring-violet-400 dark:focus:ring-violet-800 transition-all duration-200 active:scale-95"
-        >
-          Create Account
-        </button>
-      </form>
-
-      <div class="text-center">
-        <p class="text-sm text-gray-600 dark:text-gray-400">
-          Already have an account?
-          <router-link to="/" class="font-medium text-violet-500 hover:underline">Sign In</router-link>
-        </p>
-      </div>
+  <div class="relative w-full max-w-md mx-auto p-8 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-2xl">
+    <div class="text-center mb-8">
+      <h1 class="text-4xl font-bold tracking-tighter text-white">Create an Account</h1>
+      <p class="mt-2 text-gray-300">Join Nova Cloud and start your journey.</p>
     </div>
-  </main>
+
+    <form class="space-y-6" @submit.prevent="handleSubmit">
+      <div>
+        <label for="username" class="block mb-2 text-sm font-medium text-gray-200">Username</label>
+        <input
+          v-model="username"
+          type="text"
+          id="username"
+          class="block w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:ring-2 focus:ring-violet-400 focus:border-violet-400 outline-none transition-all duration-300"
+          placeholder="choose-a-username"
+          required
+        />
+      </div>
+
+      <div>
+        <label for="password" class="block mb-2 text-sm font-medium text-gray-200">Password</label>
+        <input
+          v-model="password"
+          type="password"
+          id="password"
+          class="block w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:ring-2 focus:ring-violet-400 focus:border-violet-400 outline-none transition-all duration-300"
+          placeholder="••••••••"
+          required
+        />
+      </div>
+
+      <div v-if="errorMessage" class="p-3 text-sm text-red-300 bg-red-500/20 rounded-lg" role="alert">
+        {{ errorMessage }}
+      </div>
+
+      <button
+        type="submit"
+        @click="onButtonClick"
+        class="w-full px-4 py-3 font-semibold text-white bg-violet-600 rounded-lg hover:bg-violet-700 focus:outline-none focus:ring-4 focus:ring-violet-500/50 transition-all duration-300 transform active:scale-95"
+      >
+        Create Account
+      </button>
+    </form>
+
+    <div class="text-center mt-6">
+      <p class="text-sm text-gray-400">
+        Already have an account?
+        <router-link to="/" class="font-medium text-violet-400 hover:underline">Sign In</router-link>
+      </p>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
-
-.font-sans {
-  font-family: 'Inter', sans-serif;
-}
-
-.shadow-xl {
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
-
-.rounded-2xl {
-  border-radius: 1rem;
-}
+/* Scoped styles can be added here if needed */
 </style>

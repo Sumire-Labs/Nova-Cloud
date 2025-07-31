@@ -5,41 +5,38 @@ const route = useRoute()
 </script>
 
 <template>
-  <div class="app-container">
-    <router-view v-slot="{ Component }">
-      <transition :name="route.meta.transition || 'fade'" mode="out-in">
-        <div :key="route.path" class="page">
-          <component :is="Component" />
-        </div>
-      </transition>
-    </router-view>
+  <div class="relative w-full h-screen overflow-hidden bg-slate-900">
+    <div class="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))] animate-aurora"></div>
+    
+    <main class="flex items-center justify-center w-full h-full">
+      <router-view v-slot="{ Component }">
+        <transition :name="route.meta.transition || 'fade'" mode="out-in">
+          <div :key="route.path">
+            <component :is="Component" />
+          </div>
+        </transition>
+      </router-view>
+    </main>
   </div>
 </template>
 
 <style>
-.app-container {
-  position: relative;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
-  background-color: #f0f2f5; /* Consistent background */
+/* Using a more specific selector to override default body styles if necessary */
+body, #app {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.page {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-}
-
-/* --- Shared Axis (Z-axis) Transition --- */
+/* Shared Axis Transition (unchanged) */
 .shared-axis-forward-enter-active,
 .shared-axis-forward-leave-active,
 .shared-axis-backward-enter-active,
 .shared-axis-backward-leave-active {
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
-/* Forward (e.g., Login -> Register) */
 .shared-axis-forward-enter-from {
   transform: translateX(30px);
   opacity: 0;
@@ -48,8 +45,6 @@ const route = useRoute()
   transform: translateX(-30px);
   opacity: 0;
 }
-
-/* Backward (e.g., Register -> Login) */
 .shared-axis-backward-enter-from {
   transform: translateX(-30px);
   opacity: 0;
@@ -59,4 +54,13 @@ const route = useRoute()
   opacity: 0;
 }
 
+/* Default fade for other transitions */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
 </style>

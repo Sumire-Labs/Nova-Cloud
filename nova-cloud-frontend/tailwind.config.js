@@ -1,12 +1,25 @@
 /** @type {import('tailwindcss').Config} */
-export default {
-  darkMode: 'class',
+module.exports = {
   content: [
     "./index.html",
     "./src/**/*.{vue,js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      animation: {
+        'aurora': 'aurora 60s linear infinite',
+      },
+      keyframes: {
+        aurora: {
+          from: {
+            background-position: '0% 50%',
+          },
+          to: {
+            background-position: '200% 50%',
+          },
+        },
+      },
+    },
   },
   plugins: [],
 }
