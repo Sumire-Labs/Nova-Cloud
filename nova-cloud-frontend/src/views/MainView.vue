@@ -50,15 +50,11 @@ const uploadFile = async (file: File) => {
   }
   
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', file, file.name);
 
   try {
     isUploading.value = true;
-    await axios.post(`http://localhost:3000/api/upload/${username.value}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
+    await axios.post(`http://localhost:3000/api/upload/${username.value}`, formData);
     // Refresh file list on successful upload
     await fetchFiles();
   } catch (error) {

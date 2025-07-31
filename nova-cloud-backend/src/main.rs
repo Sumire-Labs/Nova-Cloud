@@ -195,36 +195,32 @@ async fn upload_file_handler(
         None => return Err(StatusCode::NOT_FOUND),
     };
 
-    let mut file_data: Option<(String, Vec<u8>)> = None;
-
-    while let Some(field) = multipart.next_field().await.unwrap() {
+    while let Some(field) = multipart.next_field().await.map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)? {
         if field.name() == Some("file") {
-            let name = field.file_name().unwrap_or("unknown_file").to_string();
-            let data = field.bytes().await.unwrap().to_vec();
-            file_data = Some((name, data));
-            break; // Process only the first file
-        }
-    }
+            let file_name = field.file_name().unwrap_or("unknown_file").to_string();
+            let data = field.bytes().await.map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if let Some((name, data)) = file_data {
-        let new_file = File {
-            name: Some(name),
-            parents: Some(vec![folder_id]),
-            ..Default::default()
-        };
+            let new_file = File {
+                name: Some(file_name.clone()),
+                parents: Some(vec![folder_id]),
+                ..Default::default()
+            };
 
-        let cursor = std::io::Cursor::new(data);
-        match state.drive_hub.files().create(new_file).upload(cursor, "*/*".parse().unwrap()).await {
-            Ok((_, uploaded_file)) => {
-                println!("Successfully uploaded file '{}' for user '{}'", uploaded_file.name.clone().unwrap_or_default(), username);
-                Ok(Json(uploaded_file))
-            },
-            Err(e) => {
-                eprintln!("Failed to upload file for user '{}': {}", username, e);
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
+            let cursor = std::io::Cursor::new(data);
+            match state.drive_hub.files().create(new_file).upload(cursor, "*/*".parse().unwrap()).await {
+                Ok((_, uploaded_file)) => {
+                    println!("Successfully uploaded file '{}' for user '{}'", uploaded_file.name.clone().unwrap_or_default(), username);
+                    return Ok(Json(uploaded_file));
+                },
+                Err(e) => {
+                    eprintln!("Failed to upload file for user '{}': {}", username, e);
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                }
             }
         }
-    } else {
-        Err(StatusCode::BAD_REQUEST)
     }
+
+    // If no file field was found
+    Err(StatusCode::BAD_REQUEST)
+}
 }
