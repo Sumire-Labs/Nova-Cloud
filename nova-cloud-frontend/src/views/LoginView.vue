@@ -17,9 +17,8 @@ const handleSubmit = async () => {
       password: password.value,
     })
     console.log('Backend response:', response.data)
-    alert('Login successful!')
-    // On successful login, you might want to navigate to a dashboard
-    // router.push('/dashboard') 
+    // On successful login, navigate to the main view
+    router.push('/main') 
   } catch (error: any) {
     console.error('Error during login:', error)
     if (error.response) {
