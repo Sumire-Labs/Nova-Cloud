@@ -1,0 +1,23 @@
+# Rust/Cargo
+/nova-cloud-backend/target/
+/nova-cloud-backend/Cargo.lock
+
+# Node.js/npm
+/nova-cloud-frontend/node_modules/
+/nova-cloud-frontend/dist/
+/nova-cloud-frontend/.DS_Store
+/nova-cloud-frontend/npm-debug.log*
+/nova-cloud-frontend/yarn-debug.log*
+/nova-cloud-frontend/yarn-error.log*
+/nova-cloud-frontend/pnpm-debug.log*
+
+# IDE/Editor specific
+.vscode/
+.idea/
+
+# Windows specific
+Thumbs.db
+
+# environment files
+.env
+
