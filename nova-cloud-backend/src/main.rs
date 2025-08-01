@@ -101,7 +101,7 @@ async fn main() {
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
-        .allow_headers(axum::http::HeaderName::from_static("content-type"))
+        .allow_headers(Any)
         .allow_origin(Any);
 
     let app = Router::new()
