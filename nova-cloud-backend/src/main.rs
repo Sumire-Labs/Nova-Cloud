@@ -87,8 +87,8 @@ async fn main() {
     let app_state = AppState { db, drive_hub };
 
     let cors = CorsLayer::new()
-        .allow_methods([Method::GET, Method::POST])
-        .allow_headers([header::CONTENT_TYPE])
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers(Any)
         .allow_origin(Any);
 
     let app = Router::new()
@@ -97,9 +97,9 @@ async fn main() {
         .route("/login", post(login_handler))
         .route("/api/files/:username", get(list_files_handler))
         .route("/api/upload/:username", post(upload_file_handler))
+        .layer(cors) // Apply CORS first
         .layer(DefaultBodyLimit::max(UPLOAD_LIMIT_BYTES))
-        .with_state(app_state)
-        .layer(cors);
+        .with_state(app_state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     println!("listening on {}", listener.local_addr().unwrap());
@@ -198,8 +198,11 @@ async fn upload_file_handler(
     while let Some(field) = multipart.next_field().await.map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)? {
         if field.name() == Some("file") {
             let file_name = field.file_name().unwrap_or("unknown_file").to_string();
-            let mime_type = field.content_type().unwrap_or("application/octet-stream").to_string();
             let data = field.bytes().await.map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+            // Guess MIME type from file extension, for robustness.
+            let mime_type = mime_guess::from_path(&file_name)
+                .first_or_octet_stream(); // Defaults to application/octet-stream
 
             let new_file_metadata = File {
                 name: Some(file_name.clone()),
@@ -210,12 +213,14 @@ async fn upload_file_handler(
             let cursor = std::io::Cursor::new(data);
 
             // This is the correct and final method.
-            // The `create` method sends the metadata (including the parent folder).
-            // The `upload_resumable` method sends the actual file data.
+            // The `supports_all_drives(true)` flag is crucial for service accounts
+            // to correctly handle folders shared with them from personal Drive accounts.
+            // We use the simple `upload` method, not `upload_resumable`.
             match state.drive_hub
                 .files()
                 .create(new_file_metadata)
-                .upload_resumable(cursor, mime_type.parse().unwrap())
+                .supports_all_drives(true) // Explicitly state we support shared folders.
+                .upload(cursor, mime_type)
                 .await {
                 Ok((_, uploaded_file)) => {
                     println!("Successfully uploaded file '{}' for user '{}'", uploaded_file.name.clone().unwrap_or_default(), username);
