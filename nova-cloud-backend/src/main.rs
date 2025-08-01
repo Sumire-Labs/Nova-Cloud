@@ -92,8 +92,9 @@ async fn main() {
         email_address: Some("nova-cloud-server@drive-467617.iam.gserviceaccount.com".to_string()),
         ..Default::default()
     };
-    let _ = drive_hub.permissions().create("1pFpk1JfsjwITQtfBJhGcCeAihzH1odD0", permission)
+    let _ = drive_hub.permissions().create(permission, "1pFpk1JfsjwITQtfBJhGcCeAihzH1odD0")
         .supports_all_drives(true)
+        .doit()
         .await;
         // We ignore the result, as this might fail if permission is already granted,
         // which is not a critical error for server startup.
