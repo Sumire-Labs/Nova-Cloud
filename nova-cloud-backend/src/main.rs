@@ -1,6 +1,6 @@
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, State},
-    http::{header, Method, StatusCode},
+    http::{Method, StatusCode},
     routing::{get, post},
     Json, Router,
 };
@@ -85,7 +85,6 @@ async fn main() {
     let drive_hub = Arc::new(create_drive_hub().await);
 
     // Ensure the service account has writer permissions on the target folder.
-    // This is crucial for allowing the service account to create files inside it.
     let permission = Permission {
         type_: Some("user".to_string()),
         role: Some("writer".to_string()),
@@ -96,15 +95,13 @@ async fn main() {
         .supports_all_drives(true)
         .doit()
         .await;
-        // We ignore the result, as this might fail if permission is already granted,
-        // which is not a critical error for server startup.
 
     let db = load_db_from_file().await;
     let app_state = AppState { db, drive_hub };
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
-        .allow_headers(Any)
+        .allow_headers(axum::http::HeaderName::from_static("content-type"))
         .allow_origin(Any);
 
     let app = Router::new()
@@ -146,7 +143,7 @@ async fn register_handler(
         ..Default::default()
     };
 
-    let created_folder = match state.drive_hub.files().create(new_folder).upload(std::io::empty(), "*/*".parse().unwrap()).await {
+    let created_folder = match state.drive_hub.files().create(new_folder).supports_all_drives(true).upload(std::io::empty(), "*/*".parse().unwrap()).await {
         Ok((_, folder)) => folder,
         Err(e) => {
             eprintln!("Failed to create folder: {}", e);
@@ -191,7 +188,7 @@ async fn list_files_handler(
     };
 
     let query = format!("'{}' in parents and trashed = false", folder_id);
-    match state.drive_hub.files().list().q(&query).param("fields", "files(id,name,mimeType,createdTime,modifiedTime,size,iconLink)").doit().await {
+    match state.drive_hub.files().list().q(&query).supports_all_drives(true).param("fields", "files(id,name,mimeType,createdTime,modifiedTime,size,iconLink)").doit().await {
         Ok((_, file_list)) => Ok(Json(file_list.files.unwrap_or_default())),
         Err(e) => {
             eprintln!("Failed to list files for user '{}': {}", username, e);
@@ -216,9 +213,8 @@ async fn upload_file_handler(
             let file_name = field.file_name().unwrap_or("unknown_file").to_string();
             let data = field.bytes().await.map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-            // Guess MIME type from file extension for robustness.
             let mime_type = mime_guess::from_path(&file_name)
-                .first_or_octet_stream(); // Defaults to application/octet-stream
+                .first_or_octet_stream();
 
             let new_file_metadata = File {
                 name: Some(file_name.clone()),
@@ -228,8 +224,6 @@ async fn upload_file_handler(
 
             let cursor = std::io::Cursor::new(data);
 
-            // Use `upload_resumable` with a guessed `Mime` type.
-            // This is the definitive, correct approach.
             match state.drive_hub
                 .files()
                 .create(new_file_metadata)
