@@ -198,11 +198,9 @@ async fn upload_file_handler(
     while let Some(field) = multipart.next_field().await.map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)? {
         if field.name() == Some("file") {
             let file_name = field.file_name().unwrap_or("unknown_file").to_string();
+            // Get the MIME type as a simple string from the frontend.
+            let mime_type = field.content_type().unwrap_or("application/octet-stream").to_string();
             let data = field.bytes().await.map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-            // Guess MIME type from file extension, for robustness.
-            let mime_type = mime_guess::from_path(&file_name)
-                .first_or_octet_stream(); // Defaults to application/octet-stream
 
             let new_file_metadata = File {
                 name: Some(file_name.clone()),
@@ -212,15 +210,12 @@ async fn upload_file_handler(
 
             let cursor = std::io::Cursor::new(data);
 
-            // This is the correct and final method.
-            // The `supports_all_drives(true)` flag is crucial for service accounts
-            // to correctly handle folders shared with them from personal Drive accounts.
-            // We use the simple `upload` method, not `upload_resumable`.
+            // Use the simple `upload` method, passing the MIME type as a string slice (`&str`).
             match state.drive_hub
                 .files()
                 .create(new_file_metadata)
-                .supports_all_drives(true) // Explicitly state we support shared folders.
-                .upload(cursor, mime_type)
+                .supports_all_drives(true)
+                .upload(cursor, &mime_type)
                 .await {
                 Ok((_, uploaded_file)) => {
                     println!("Successfully uploaded file '{}' for user '{}'", uploaded_file.name.clone().unwrap_or_default(), username);
