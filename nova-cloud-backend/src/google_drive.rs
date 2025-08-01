@@ -1,5 +1,5 @@
 use yup_oauth2::ServiceAccountAuthenticator;
-use google_drive3::DriveHub;
+use google_drive3::{DriveHub, api::Permission};
 use hyper::client::HttpConnector;
 use hyper_rustls::HttpsConnector;
 

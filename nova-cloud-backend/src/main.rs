@@ -13,7 +13,7 @@ use tower_http::cors::{Any, CorsLayer};
 
 mod google_drive;
 use google_drive::{create_drive_hub, DriveHubType};
-use google_drive3::api::File;
+use google_drive3::api::{File, Permission};
 
 const DB_PATH: &str = "database.json";
 const UPLOAD_LIMIT_BYTES: usize = 100 * 1024 * 1024; // 100 MB
@@ -83,6 +83,21 @@ async fn load_db_from_file() -> Db {
 #[tokio::main]
 async fn main() {
     let drive_hub = Arc::new(create_drive_hub().await);
+
+    // Ensure the service account has writer permissions on the target folder.
+    // This is crucial for allowing the service account to create files inside it.
+    let permission = Permission {
+        type_: Some("user".to_string()),
+        role: Some("writer".to_string()),
+        email_address: Some("nova-cloud-server@drive-467617.iam.gserviceaccount.com".to_string()),
+        ..Default::default()
+    };
+    let _ = drive_hub.permissions().create("1pFpk1JfsjwITQtfBJhGcCeAihzH1odD0", permission)
+        .supports_all_drives(true)
+        .await;
+        // We ignore the result, as this might fail if permission is already granted,
+        // which is not a critical error for server startup.
+
     let db = load_db_from_file().await;
     let app_state = AppState { db, drive_hub };
 
