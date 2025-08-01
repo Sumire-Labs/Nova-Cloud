@@ -198,9 +198,11 @@ async fn upload_file_handler(
     while let Some(field) = multipart.next_field().await.map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)? {
         if field.name() == Some("file") {
             let file_name = field.file_name().unwrap_or("unknown_file").to_string();
-            // Get the MIME type as a simple string from the frontend.
-            let mime_type = field.content_type().unwrap_or("application/octet-stream").to_string();
             let data = field.bytes().await.map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+            // Guess MIME type from file extension for robustness.
+            let mime_type = mime_guess::from_path(&file_name)
+                .first_or_octet_stream(); // Defaults to application/octet-stream
 
             let new_file_metadata = File {
                 name: Some(file_name.clone()),
@@ -210,12 +212,13 @@ async fn upload_file_handler(
 
             let cursor = std::io::Cursor::new(data);
 
-            // Use the simple `upload` method, passing the MIME type as a string slice (`&str`).
+            // Use `upload_resumable` with a guessed `Mime` type.
+            // This is the definitive, correct approach.
             match state.drive_hub
                 .files()
                 .create(new_file_metadata)
                 .supports_all_drives(true)
-                .upload(cursor, &mime_type)
+                .upload_resumable(cursor, mime_type)
                 .await {
                 Ok((_, uploaded_file)) => {
                     println!("Successfully uploaded file '{}' for user '{}'", uploaded_file.name.clone().unwrap_or_default(), username);
